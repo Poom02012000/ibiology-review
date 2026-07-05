@@ -175,9 +175,21 @@
   .btn-ghost { background: #fff; color: var(--ink); border-color: var(--line); }
   .btn-ghost:hover { border-color: var(--leaf); color: var(--leaf-dark); }
 
-  .result { display: none; padding: 0 24px 8px; }
-  .result.show { display: block; }
-  .result h2 { font-size: 1.05rem; margin: 6px 0 10px; }
+  .result { display: none; padding: 8px 24px; }
+  .result.show { display: block; text-align: center; }
+  .success-mark {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: var(--leaf);
+    color: #fff;
+    font-size: 32px;
+    line-height: 60px;
+    font-weight: 700;
+    margin: 8px auto 14px;
+    box-shadow: 0 8px 20px -8px rgba(239, 126, 16, 0.6);
+  }
+  .result h2 { font-size: 1.25rem; margin: 0 0 8px; }
   .preview {
     background: var(--leaf-tint);
     border: 1px solid var(--line);
@@ -261,23 +273,18 @@
       <div class="err" id="err"></div>
 
       <div class="actions" style="padding-left:0;padding-right:0;padding-bottom:0;">
-        <button type="submit" class="btn btn-primary">สร้างรีวิว</button>
+        <button type="submit" class="btn btn-primary">ส่งรีวิว</button>
       </div>
     </form>
 
     <div class="result" id="result" aria-live="polite">
-      <h2>รีวิวของคุณพร้อมส่งแล้ว 🎉</h2>
-      <div class="preview" id="preview"></div>
-      <p class="hint">กด <b>ส่งทาง LINE</b> แล้วเลือกแชตของ iBiology หรือกด <b>คัดลอก</b> แล้วนำไปวางในแชตที่ได้รับลิงก์นี้ได้เลยครับ</p>
+      <div class="success-mark" aria-hidden="true">✓</div>
+      <h2>ขอบคุณมากครับ! 🎉</h2>
+      <p class="hint">บันทึกรีวิวของคุณเรียบร้อยแล้ว ความเห็นของคุณมีค่ามากสำหรับ <b>iBiology</b> 🌿</p>
     </div>
 
     <div class="actions" id="sendActions" style="display:none;">
-      <a class="btn btn-line" id="lineBtn" target="_blank" rel="noopener">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M12 3C6.5 3 2 6.6 2 11c0 3.9 3.5 7.2 8.3 7.8.3.07.75.22.86.5.1.26.06.66.03.92l-.14.83c-.04.24-.2.96.84.52 1.04-.44 5.6-3.3 7.64-5.65C21 14.2 22 12.7 22 11c0-4.4-4.5-8-10-8Z"/></svg>
-        ส่งทาง LINE
-      </a>
-      <button class="btn btn-ghost" id="copyBtn" type="button">คัดลอกรีวิว</button>
-      <button class="btn btn-ghost" id="editBtn" type="button">แก้ไข</button>
+      <button class="btn btn-ghost" id="againBtn" type="button">เขียนรีวิวใหม่</button>
     </div>
 
     <p class="foot">ขอบคุณที่สละเวลารีวิวครับ — iBiology</p>
@@ -307,31 +314,17 @@
       });
     });
 
+    // --- Supabase (auto-save reviews) ---
+    var SUPABASE_URL = 'https://axackomhgowlozprdfpl.supabase.co';
+    var SUPABASE_KEY = 'sb_publishable_A-PgbaJBDwQdxqXi4ahEqg_m2yRGj2d';
+
     var form = document.getElementById('reviewForm');
     var err = document.getElementById('err');
     var result = document.getElementById('result');
-    var preview = document.getElementById('preview');
     var sendActions = document.getElementById('sendActions');
-    var lineBtn = document.getElementById('lineBtn');
-    var reviewText = '';
+    var submitBtn = form.querySelector('button[type="submit"]');
 
     function val(id) { return document.getElementById(id).value.trim(); }
-
-    function buildText() {
-      var name = val('name');
-      var school = val('school');
-      var content = val('content');
-      var lines = [];
-      lines.push('🌿 รีวิวเพจ iBiology');
-      lines.push('');
-      lines.push('ชื่อ: ' + name);
-      lines.push('โรงเรียน: ' + school);
-      if (rating) lines.push('คะแนน: ' + '★'.repeat(rating) + '☆'.repeat(5 - rating) + ' (' + rating + '/5)');
-      lines.push('');
-      lines.push('ภาพรวมเนื้อหา:');
-      lines.push(content);
-      return lines.join('\n');
-    }
 
     form.addEventListener('submit', function (e) {
       e.preventDefault();
@@ -340,43 +333,42 @@
         err.textContent = 'กรุณากรอก ชื่อ, โรงเรียน และ ภาพรวมเนื้อหา ให้ครบก่อนนะครับ';
         return;
       }
-      reviewText = buildText();
-      preview.textContent = reviewText;
-      lineBtn.href = 'https://line.me/R/msg/text/?' + encodeURIComponent(reviewText);
-      result.classList.add('show');
-      sendActions.style.display = 'flex';
-      form.style.display = 'none';
-      result.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'กำลังส่ง...';
+
+      fetch(SUPABASE_URL + '/rest/v1/ibiology_reviews', {
+        method: 'POST',
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Authorization': 'Bearer ' + SUPABASE_KEY,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify({
+          name: val('name'),
+          school: val('school'),
+          rating: rating || null,
+          content: val('content')
+        })
+      }).then(function (res) {
+        if (!res.ok) { throw new Error('HTTP ' + res.status); }
+        form.style.display = 'none';
+        result.classList.add('show');
+        sendActions.style.display = 'flex';
+        result.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }).catch(function () {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'ส่งรีวิว';
+        err.textContent = 'ส่งไม่สำเร็จ กรุณาลองใหม่อีกครั้ง (ตรวจสอบอินเทอร์เน็ต)';
+      });
     });
 
-    var toast = document.getElementById('toast');
-    var toastTimer;
-    function showToast(msg) {
-      toast.textContent = msg;
-      toast.classList.add('show');
-      clearTimeout(toastTimer);
-      toastTimer = setTimeout(function () { toast.classList.remove('show'); }, 1800);
-    }
-
-    document.getElementById('copyBtn').addEventListener('click', function () {
-      function ok() { showToast('คัดลอกแล้ว ✓'); }
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(reviewText).then(ok).catch(fallback);
-      } else { fallback(); }
-      function fallback() {
-        var ta = document.createElement('textarea');
-        ta.value = reviewText;
-        ta.style.position = 'fixed';
-        ta.style.opacity = '0';
-        document.body.appendChild(ta);
-        ta.select();
-        try { document.execCommand('copy'); showToast('คัดลอกแล้ว ✓'); }
-        catch (e) { showToast('กดค้างเพื่อคัดลอกข้อความด้านบนได้ครับ'); }
-        document.body.removeChild(ta);
-      }
-    });
-
-    document.getElementById('editBtn').addEventListener('click', function () {
+    document.getElementById('againBtn').addEventListener('click', function () {
+      form.reset();
+      rating = 0;
+      paintStars();
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'ส่งรีวิว';
       form.style.display = 'flex';
       result.classList.remove('show');
       sendActions.style.display = 'none';
